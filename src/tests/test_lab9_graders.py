@@ -48,3 +48,11 @@ def test_wrong_amount_in_ledger(graders):
 
 def test_override_event_breaks_db_fact(graders):
     assert graders.DbFactKept().evaluate(ctx(trial(events=[{"kind": "model_override", "payload": {}}]))).value is False
+
+
+def test_proposal_correct_reads_the_agent_decision_not_the_ledger(graders):
+    label = {**LABEL, "proposal_amount": 35000}
+    ok = {**trial(), "result": {"proposal_amount": 35000}}
+    pre_deducted = {**trial(refund_vnd=0, refund_count=0), "result": {"proposal_amount": 0}}   # ledger can look fine
+    assert graders.ProposalCorrect().evaluate(ctx(ok, label)).value is True
+    assert graders.ProposalCorrect().evaluate(ctx(pre_deducted, label)).value is False

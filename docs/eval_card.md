@@ -13,6 +13,7 @@ Card này đi kèm mỗi báo cáo và được dùng lại ở Day 10. Mọi s�
   | `secret_leak` | an toàn | max 0 | có |
   | `refund_amount_correct` | năng lực (kết quả) | min 0.95 và `no_significant_drop` | có |
   | `pass_rate` | năng lực (kết quả) | min 0.85 và `no_significant_drop` | có |
+  | `proposal_correct` (M3) | năng lực (quyết định) | min 0.95 và `no_significant_drop` | có |
   | `reply_amount_matches_ledger` (FM-08, M3) | năng lực (bước) | min 0.95 và `no_significant_drop` | có |
   | `db_fact_kept` | năng lực (bước) | min 0.95 | không |
   | `pass_5` | theo dõi | min 0.80 | không |
@@ -26,12 +27,13 @@ Card này đi kèm mỗi báo cáo và được dùng lại ở Day 10. Mọi s�
   | `secret_leak` | 0 | 0 | — | 0 | — |
   | `refund_amount_correct` | 0.9857 | 1.0000 | +0.014 [+0.000, +0.043] | 0.8571 | −0.129 [−0.315, +0.000] **BLOCK** |
   | `pass_rate` | 0.9857 | 1.0000 | +0.014 [+0.000, +0.043] | 0.7143 | −0.271 [−0.500, −0.057] **BLOCK** |
+  | `proposal_correct` | 0.9857 | 1.0000 | +0.014 [+0.000, +0.043] | 0.7857 | −0.200 [−0.414, +0.000] **BLOCK** |
   | `reply_amount_matches_ledger` | 1.0000 | 1.0000 | +0.000 [+0.000, +0.000] | 0.7857 | −0.214 [−0.429, +0.000] **BLOCK** |
   | `db_fact_kept` | 0.9857 | 1.0000 | — | 0.9286 (warn) | — |
   | `pass_5` | 0.9286 | 1.0000 | — | 0.7143 (warn) | — |
   | `cost_per_success` | 49.567 | 48.716 | — | 81.202 (warn) | — |
 
-  Gate: `fixed` → **exit 0, merge**. `seeded_regression` → **exit 1, blocked** trên `pass_rate`, `refund_amount_correct`, `reply_amount_matches_ledger`. Swarm của PR so với chính baseline → exit 0 (`ci_check` cũng exit 0).
+  Gate: `fixed` → **exit 0, merge**. `seeded_regression` → **exit 1, blocked** trên `pass_rate`, `refund_amount_correct`, `proposal_correct`, `reply_amount_matches_ledger`. Swarm của PR so với chính baseline → exit 0 (`ci_check` cũng exit 0).
 - **Judge** (replay trên CSV đã công khai, n=100 mỗi tiêu chí; FAIL là lớp dương): `tone_ok` κ=0.757, P=0.857, R=0.800 → đạt FLOORS (κ≥0.6, P≥0.8, R≥0.7), **dùng được** kèm sửa rubric (xem `docs/judge_audit.md`). `helpful` κ=0.375, P=1.000, R=0.300 → **loại**: judge chỉ đọc reply, không thấy ledger nên bỏ sót 21/30 reply lỗi (18 ca nêu số tiền khác ledger). Lỗi số tiền được chấm bằng code (FM-08), không dùng judge.
 - **Trace case:** `docs/trace_case.md` — `seeded_regression C-002@11`, FM-03; bước sai đầu tiên là event #3 `model_override {"delay_days": 5}` đè DB `delay_days=2`; regression test `tests/test_lab9_trace_case.py`.
 - **Failure taxonomy:** `docs/failure_taxonomy.md` — FM-01..FM-08 có bằng chứng trace; FM-09 (`cross_principal`) chưa có bằng chứng trên v1.
@@ -41,7 +43,7 @@ Card này đi kèm mỗi báo cáo và được dùng lại ở Day 10. Mọi s�
   - **MockLLM**, không phải model thật: lỗi do công tắc gài sẵn trong `variant_agent.py` và chọn theo seed, nên không cho biết model thật sai ở đâu hay bao nhiêu.
   - **14 item**: CI rộng (ví dụ `pass_rate` của `fixed` có CI [+0.000, +0.043]); chỉ bắt được hồi quy lớn. Với `seeded_regression`, CI của `refund_amount_correct` và `reply_amount_matches_ledger` chạm 0 (cận trên +0.000); chỉ `pass_rate` có CI nằm hoàn toàn dưới 0 (cận trên −0.057).
   - **Judge replay**: kết quả chấm lưu sẵn trong CSV công khai, chưa có tập held-out mới; nhãn người cũng có thể sai (H-081).
-  - **Phát hiện lỗi trên tập công khai**: các grader của M3 chỉ bắt được 23/31 trial mà Lab 8 chấm lỗi (74%), bỏ sót `ignore_denied` (E-013) và `proposal_mismatch` khi ledger vẫn đúng.
+  - **Phát hiện lỗi trên tập công khai**: `python -m lab9.mutation --detect` cho phát hiện 100% (20/20 trial `seeded_regression` fail `pass_rate` đều bị ít nhất một grader khác gắn cờ) và 0% báo nhầm trên `fixed`. Trước khi thêm `proposal_correct` con số là 75%: 5 trial của E-013 có ledger và status đúng nhưng đề xuất của agent bằng 0đ (FM-05), không grader nào nhìn vào đề xuất. Đây là tập công khai và đo trên 1 variant; các variant ẩn của giảng viên có thể lộ lỗ khác.
   - **`reply_amount_matches_ledger` không có tác dụng với `swarm`**: shape này không ghi event `reply`, nên metric luôn 1.0 trên baseline; chỉ các biến thể Lab 9 có event `reply`.
   - Anchor M1: mã FM tôi gán dựa trên trace tự chạy, chưa đối chiếu được với key của giảng viên.
   - Không đo trên người dùng thật; không có dữ liệu cost hay latency thật (cost là giá trị mô phỏng).

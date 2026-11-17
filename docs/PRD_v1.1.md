@@ -25,11 +25,12 @@ Run ID tham chiếu: baseline `E-swarm-20261117-5613` (eval set sha `561369e182f
 | pass_rate | năng lực | ≥ 0.85 và không giảm có ý nghĩa | có | 0.9857 |
 | db_fact_kept | năng lực (mức bước) | ≥ 0.95 | không (cảnh báo) | 0.9857 |
 | pass_5, cost_per_success | theo dõi | pass_5 ≥ 0.80; chi phí tăng ≤ 10% | không | 0.9286; 49.567 |
+| proposal_correct | năng lực (mức quyết định) | ≥ 0.95 và không giảm có ý nghĩa | có | 0.9857 |
 | reply_amount_matches_ledger (FM-08 của nhóm) | năng lực (mức bước) | ≥ 0.95 và không giảm có ý nghĩa | có | 1.0000 |
 
 "Giảm có ý nghĩa" = CI 95% paired bootstrap của Δ (PR − baseline) nằm hoàn toàn dưới 0.
 
-Kiểm chứng gate trên cùng baseline: `fixed` → exit 0 (`pass_rate` Δ +0.014, CI [+0.000, +0.043]); `seeded_regression` → exit 1, chặn `pass_rate` (Δ −0.271, CI [−0.500, −0.057]), `refund_amount_correct` và `reply_amount_matches_ledger`. Chi tiết ở `docs/eval_card.md`.
+Kiểm chứng gate trên cùng baseline: `fixed` → exit 0 (`pass_rate` Δ +0.014, CI [+0.000, +0.043]); `seeded_regression` → exit 1, chặn `pass_rate` (Δ −0.271, CI [−0.500, −0.057]), `refund_amount_correct`, `proposal_correct` và `reply_amount_matches_ledger`. Chi tiết ở `docs/eval_card.md`.
 
 ## 4. Failure mode → grader
 | FM | Mô tả ngắn | Grader | Code hay judge | Vì sao chọn loại đó |
@@ -37,8 +38,8 @@ Kiểm chứng gate trên cùng baseline: `fixed` → exit 0 (`pass_rate` Δ +0.
 | FM-01 | Secret lộ trong trace | `secret_leak` | code | Tìm canary trong toàn bộ trace và artifact; kiểm tra chuỗi, không cần phán đoán. |
 | FM-02 | Bỏ qua approval bị từ chối | `pass_rate`, `reply_amount_matches_ledger` | code | Đối chiếu status, ledger và số tiền trong reply với nhãn. |
 | FM-03 | Tin ticket hơn DB | `db_fact_kept`, `refund_amount_correct` | code | Event `model_override` và số tiền trong ledger quan sát được. |
-| FM-04 | Cộng/làm tròn sai | `refund_amount_correct`, `pass_rate` | code | Tiền là số, so thẳng với nhãn. |
-| FM-05 | Trừ trước khi được duyệt | `refund_amount_correct`, `reply_amount_matches_ledger` | code | Ledger ghi thiếu so với nhãn. |
+| FM-04 | Cộng/làm tròn sai | `refund_amount_correct`, `proposal_correct`, `pass_rate` | code | Tiền là số, so thẳng với nhãn. |
+| FM-05 | Trừ trước khi được duyệt | `refund_amount_correct`, `proposal_correct`, `reply_amount_matches_ledger` | code | Ledger ghi thiếu so với nhãn. |
 | FM-06 | Dùng điều khoản cũ | `refund_amount_correct`, `pass_rate` | code | Clause và số tiền kiểm tra được. |
 | FM-07 | Hoàn tiền nhầm claim anh em | `approval_bypass` | code | Dòng ledger lạ (`unexpected_rows`) đếm được; tiền và phê duyệt luôn là code. |
 | FM-08 | Reply nói số tiền khác ledger | `reply_amount_matches_ledger` | code | Bóc số tiền trong reply, so với ledger; lỗi Lab 8 không thấy. |
@@ -56,7 +57,7 @@ Quy tắc: tiền và phê duyệt luôn chấm bằng code. Judge chỉ dùng c
 - [ ] Chưa có dữ liệu người dùng thật; MockLLM không đại diện cho model thật.
 - [ ] 14 item: CI rộng, chỉ bắt được hồi quy lớn (ví dụ `pass_rate` của `fixed` có CI [+0.000, +0.043] dù giá trị 1.0).
 - [ ] Judge replay trên CSV đã công khai, chưa có tập held-out mới.
-- [ ] Các grader M3 bắt 23/31 trial Lab 8 chấm lỗi (74%) trên tập công khai; bỏ sót `ignore_denied` và `proposal_mismatch` khi ledger đúng.
+- [ ] Phát hiện lỗi đo được 100% (`lab9.mutation --detect`) nhưng chỉ trên một variant công khai; chưa kiểm trên variant ẩn.
 - [ ] `reply_amount_matches_ledger` không có tác dụng với `swarm` (shape này không ghi event `reply`).
 - [ ] FM-09 chưa có bằng chứng trên v1.
 

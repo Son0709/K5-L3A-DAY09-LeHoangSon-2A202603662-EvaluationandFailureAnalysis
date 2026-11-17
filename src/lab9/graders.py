@@ -66,6 +66,19 @@ class RefundAmountCorrect(Evaluator[Any, Trial]):
 
 
 @dataclass
+class ProposalCorrect(Evaluator[Any, Trial]):
+    """Capability, decision level. The agent's own proposal (what it asks the host to pay) must equal the
+    labelled one. The ledger can look right while the decision was wrong: a pre-deducted proposal of 0
+    never reaches the host, so a denial the host should have recorded is silently skipped (FM-05)."""
+
+    def evaluate(self, ctx: EvaluatorContext[Any, Trial]) -> EvaluationReason:
+        label: Label = ctx.expected_output or {}
+        got = int(ctx.output["result"].get("proposal_amount") or 0)
+        want = int(label.get("proposal_amount") or 0)
+        return EvaluationReason(value=got == want, reason=None if got == want else f"proposal {got} != expected {want}")
+
+
+@dataclass
 class DbFactKept(Evaluator[Any, Trial]):
     """Step level (one check per trace event). Fails when any event overrides a DB fact with a ticket claim."""
 
@@ -105,4 +118,5 @@ GRADERS: dict[str, type[Evaluator]] = {
     "refund_amount_correct": RefundAmountCorrect,
     "db_fact_kept": DbFactKept,
     "reply_amount_matches_ledger": ReplyMatchesLedger,
+    "proposal_correct": ProposalCorrect,
 }
