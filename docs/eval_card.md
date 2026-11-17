@@ -3,7 +3,7 @@
 Card này đi kèm mỗi báo cáo và được dùng lại ở Day 10. Mọi số liệu dưới đây lấy từ báo cáo do `lab9.eval` sinh ra và từ output của `lab9.gate` / `lab9.judge`; không gõ tay.
 
 - **Run ID / eval set SHA:** baseline `E-swarm-20261117-5613` (`src/reports/baseline_v1.json`, shape `swarm`); PR so sánh `E-fixed-20261117-5613` và `E-seeded_regression-20261117-5613`. Cả ba cùng eval set sha `561369e182fa`.
-- **Phiên bản:** nhánh `starter/d09` (commit `14863d5` khi đo; grader từ `d4d4db7`, thống kê từ `85e9d55`) · eval set v1 (sha `561369e182fa`) · `metric_spec_version` 1.0 · seeds 11/22/33/44/55 · MockLLM. sha eval set được băm sau khi chuẩn hóa CRLF → LF, nên Windows và Linux cho cùng giá trị.
+- **Phiên bản:** nhánh `starter/d09` (`baseline_v1.json` sinh tại commit `d6410cc`, cùng commit thêm `proposal_correct`; `paired_bootstrap` từ `85e9d55`) · eval set v1 (sha `561369e182fa`) · `metric_spec_version` 1.0 · seeds 11/22/33/44/55 · MockLLM. sha eval set được băm sau khi chuẩn hóa CRLF → LF, nên Windows và Linux cho cùng giá trị.
 - **Eval set:** v1, 14 item × 5 seed = 70 trial mỗi shape, nguồn `lab8_public`; nhãn tách riêng trong `labels_v1.json` (không có nhãn inline); mỗi item mang `failure_modes` (FM-01..FM-08) và `provenance.from_trace`.
 - **Metric & ngưỡng** (trích `config/metric_spec.yaml`):
 
@@ -64,7 +64,7 @@ Card này đi kèm mỗi báo cáo và được dùng lại ở Day 10. Mọi s�
   `slice_regression` chỉ bị slice `money_movement` (và metric `proposal_correct` của M3) chặn; trung bình `pass_rate` vẫn trên sàn 0.85 và CI chạm 0. Với `flaky_regression`, trên eval set này `pass_rate` trung bình cũng chặn được (0.9143 so với 0.9786, CI dưới 0), nên `pass_hat_5` là lớp bảo vệ thứ hai chứ không phải lớp duy nhất; README nói `pass_rate` không chặn *ổn định*, và tôi chỉ đo được một lần chạy.
 - **Scorecard** (`python -m lab9.mutation --spec config/metric_spec_v2.yaml --baseline reports/baseline_v2.json`): `fixed` và `honest_refactor` → merge; `seeded_regression`, `slice_regression`, `flaky_regression` → block; **mutation score 3/3, 0 báo nhầm**.
 - **Giới hạn cỡ mẫu:** một trial lỗi đơn lẻ (1/140) chỉ làm `pass_rate` giảm 0.0071, và CI paired không tách được nó khỏi nhiễu. Một item mất độ tin cậy làm `pass_hat_5` giảm 1/28 = 0.036; với baseline 0.8929 và sàn 0.80, **tối đa 2 item** (0.8929 → 0.8214) có thể trở nên chập chờn mà gate vẫn cho qua, item thứ 3 mới chặn. Một bug chỉ xuất hiện ở 1/3 seed (`rare`) vì vậy không phát hiện ổn định được với 5 seed, và tôi không hạ ngưỡng để gate "bắt được" nó.
-- **Chưa kiểm:** `reports/baseline_v2.json` được sinh bằng script nhưng cần commit (`git add -f`) để job `eval-gate-v2` chạy thật; trước đó job này bỏ qua các bước nên xanh vì không làm gì.
+- **CI:** `reports/baseline_v2.json` đã commit (`e0770e4`); job `eval-gate-v2` chạy thật trên GitHub Actions (`pytest -k advanced`, `evalset --v2`, `lab9.mutation`) và xanh.
 
 ## Gate chống gian lận eval (M7, Expert)
 

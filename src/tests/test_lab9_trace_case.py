@@ -12,9 +12,15 @@ CLAIM = "C-002"
 
 @pytest.fixture(scope="module")
 def run():
+    # lab9.variants.register() adds shapes to the global lab8.shapes.SHAPES. Put it back afterwards:
+    # Lab 8's test_public_contract asserts that SHAPES holds exactly the four Lab 8 shapes.
+    from lab8.shapes import SHAPES
     from lab9.trace_case import investigate
 
-    return investigate
+    before = dict(SHAPES)
+    yield investigate
+    SHAPES.clear()
+    SHAPES.update(before)
 
 
 def ctx(trial, label):
