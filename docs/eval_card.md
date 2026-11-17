@@ -48,3 +48,21 @@ Card này đi kèm mỗi báo cáo và được dùng lại ở Day 10. Mọi s�
   - Anchor M1: mã FM tôi gán dựa trên trace tự chạy, chưa đối chiếu được với key của giảng viên.
   - Không đo trên người dùng thật; không có dữ liệu cost hay latency thật (cost là giá trị mô phỏng).
 - **Khi nào tăng eval-set version:** khi thêm hay bớt item (ví dụ thêm item từ trace case qua `provenance.from_trace`, hoặc gộp adversarial pack v2 ở M5) → tăng `eval_set_version`, chạy lại baseline trên `main`. Khi đổi ngưỡng hoặc metric → tăng `metric_spec_version`, và ngưỡng chỉ được chặt hơn trên cùng eval-set version (ratchet).
+
+## Eval set v2 (Advanced: M5 và M6)
+
+- **Run ID / sha:** baseline `E-swarm-20261117-0120` (`reports/baseline_v2.json`), eval set v2 sha `0120458690cc`, `metric_spec_version` 2.0, 28 item × 5 seed = 140 trial. v2 = 14 item v1 (giữ `failure_modes` của nhóm) + 14 claim của pack đối kháng của giảng viên (`config/fm_map.yaml` ánh xạ cơ chế → mã FM, mỗi mã bị tấn công có ≥3 item; `evalset --v2` báo 0 lỗi).
+- **Baseline v2:** `pass_rate` 0.9786, `pass_hat_5` 0.8929, `pass_at_5` 1.0, `proposal_correct` 0.9786, `reply_amount_matches_ledger` 1.0. 3 trial fail, cả ba là FM-03 ở seed 55 (C-002, C-101, C-102).
+- **Ngưỡng `pass_hat_5` chọn từ A/A:** `python -m lab9.mutation --spec config/metric_spec_v2.yaml --aa 66,77,88,99,110` cho Δ = 0.0000 trên **mọi** metric (kể cả `pass_hat_5`), vì MockLLM tất định: cùng agent, hai bộ seed cho cùng kết quả. Vì vậy dải nhiễu A/A đo được ở đây bằng 0 và **không tự nó cho ta biết sàn**. Sàn `pass_hat_5` ≥ 0.80 (blocking) được chọn dựa trên: baseline 0.8929 (còn dư 0.093), và `flaky_regression` rơi xuống 0.5714, thấp hơn sàn rất xa. Với model thật dải nhiễu > 0 (lấy mẫu có ngẫu nhiên): khi đó phải chạy lại A/A và đặt sàn ngoài dải đó, nếu không PR trung thực sẽ bị chặn ngẫu nhiên; con số 0.80 này không có giá trị khi chuyển sang model thật.
+- **Slice nào bắt lỗi nào** (thử từng cơ chế riêng trên cùng báo cáo):
+
+  | Variant | Chỉ `pass_rate` | `pass_rate` + `pass_hat_5` | Chỉ slice `money_movement` |
+  |---|---|---|---|
+  | `slice_regression` (cộng điều khoản, seed lẻ, chỉ claim có hoàn tiền) | **qua** (0.9357) | **qua** | **chặn** |
+  | `flaky_regression` (làm tròn xuống, 1/5 seed) | chặn (0.9143) | chặn; `pass_hat_5` = 0.5714 | chặn |
+
+  `slice_regression` chỉ bị slice `money_movement` (và metric `proposal_correct` của M3) chặn; trung bình `pass_rate` vẫn trên sàn 0.85 và CI chạm 0. Với `flaky_regression`, trên eval set này `pass_rate` trung bình cũng chặn được (0.9143 so với 0.9786, CI dưới 0), nên `pass_hat_5` là lớp bảo vệ thứ hai chứ không phải lớp duy nhất; README nói `pass_rate` không chặn *ổn định*, và tôi chỉ đo được một lần chạy.
+- **Scorecard** (`python -m lab9.mutation --spec config/metric_spec_v2.yaml --baseline reports/baseline_v2.json`): `fixed` và `honest_refactor` → merge; `seeded_regression`, `slice_regression`, `flaky_regression` → block; **mutation score 3/3, 0 báo nhầm**.
+- **Giới hạn cỡ mẫu:** một trial lỗi đơn lẻ (1/140) chỉ làm `pass_rate` giảm 0.0071, và CI paired không tách được nó khỏi nhiễu. Một item mất độ tin cậy làm `pass_hat_5` giảm 1/28 = 0.036; với baseline 0.8929 và sàn 0.80, **tối đa 2 item** (0.8929 → 0.8214) có thể trở nên chập chờn mà gate vẫn cho qua, item thứ 3 mới chặn. Một bug chỉ xuất hiện ở 1/3 seed (`rare`) vì vậy không phát hiện ổn định được với 5 seed, và tôi không hạ ngưỡng để gate "bắt được" nó.
+- **Chưa làm / chưa kiểm:** `gate.integrity_check` (M7) còn là stub, nên 4 trap công khai và các trap ẩn chưa được chặn; `reports/baseline_v2.json` chưa commit nên job `eval-gate-v2` chưa chạy thật.
+

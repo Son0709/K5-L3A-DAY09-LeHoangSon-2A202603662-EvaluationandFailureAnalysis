@@ -44,8 +44,39 @@ def slice_check(pr: dict, base: dict, spec: dict) -> tuple[list[str], list[str]]
       - fail if below "min", or if no_significant_drop and the paired CI over the slice's items
         lies entirely below 0
     Return (blocked ids like "slice:money_movement/pass_rate", report lines)."""
-    # TODO M5
-    return [], []
+    blocked: list[str] = []
+    lines: list[str] = []
+    bs = spec.get("bootstrap", {})
+    for sl in spec.get("slices") or []:
+        name, metric = sl["name"], sl["metric"]
+        sid = f"slice:{name}/{metric}"
+        a, b = per_item(pr, metric, slice_name=name), per_item(base, metric, slice_name=name)
+        problems, note, value = [], "", None
+        if not a:
+            # An empty slice would pass vacuously. Fail closed: rows may have been relabelled out of it.
+            problems.append("no rows in this slice")
+        else:
+            value = sum(a.values()) / len(a)
+            if "min" in sl and value < sl["min"]:
+                problems.append(f"{value:.4f} < min {sl['min']}")
+            if sl.get("no_significant_drop"):
+                keys = sorted(set(a) & set(b))
+                if not keys:
+                    problems.append("baseline has no rows in this slice to compare with")
+                else:
+                    d, lo, hi = stats.paired_bootstrap([a[k] for k in keys], [b[k] for k in keys],
+                                                       n_resamples=bs.get("n_resamples", 1000), rng=bs.get("rng", 2027))
+                    note = f"Δ {d:+.3f} CI [{lo:+.3f}, {hi:+.3f}] over {len(keys)} items"
+                    if hi < 0:
+                        problems.append("paired CI entirely below 0")
+        failed = bool(problems)
+        label = "ok" if not failed else ("BLOCK" if sl.get("blocking") else "warn")
+        if failed and sl.get("blocking"):
+            blocked.append(sid)
+        shown = "n/a" if value is None else f"{value:.4f}"
+        lines.append(f"  {sid:<40} {shown:<8} {json.dumps({k: sl[k] for k in ('min', 'no_significant_drop') if k in sl}):<40} "
+                     f"{note:<44} {label}" + (f"  ({'; '.join(problems)})" if failed else ""))
+    return blocked, lines
 
 
 def check(pr: dict, base: dict, spec: dict, base_spec: dict | None = None) -> tuple[list[str], list[str]]:
