@@ -64,5 +64,26 @@ Card này đi kèm mỗi báo cáo và được dùng lại ở Day 10. Mọi s�
   `slice_regression` chỉ bị slice `money_movement` (và metric `proposal_correct` của M3) chặn; trung bình `pass_rate` vẫn trên sàn 0.85 và CI chạm 0. Với `flaky_regression`, trên eval set này `pass_rate` trung bình cũng chặn được (0.9143 so với 0.9786, CI dưới 0), nên `pass_hat_5` là lớp bảo vệ thứ hai chứ không phải lớp duy nhất; README nói `pass_rate` không chặn *ổn định*, và tôi chỉ đo được một lần chạy.
 - **Scorecard** (`python -m lab9.mutation --spec config/metric_spec_v2.yaml --baseline reports/baseline_v2.json`): `fixed` và `honest_refactor` → merge; `seeded_regression`, `slice_regression`, `flaky_regression` → block; **mutation score 3/3, 0 báo nhầm**.
 - **Giới hạn cỡ mẫu:** một trial lỗi đơn lẻ (1/140) chỉ làm `pass_rate` giảm 0.0071, và CI paired không tách được nó khỏi nhiễu. Một item mất độ tin cậy làm `pass_hat_5` giảm 1/28 = 0.036; với baseline 0.8929 và sàn 0.80, **tối đa 2 item** (0.8929 → 0.8214) có thể trở nên chập chờn mà gate vẫn cho qua, item thứ 3 mới chặn. Một bug chỉ xuất hiện ở 1/3 seed (`rare`) vì vậy không phát hiện ổn định được với 5 seed, và tôi không hạ ngưỡng để gate "bắt được" nó.
-- **Chưa làm / chưa kiểm:** `gate.integrity_check` (M7) còn là stub, nên 4 trap công khai và các trap ẩn chưa được chặn; `reports/baseline_v2.json` chưa commit nên job `eval-gate-v2` chưa chạy thật.
+- **Chưa kiểm:** `reports/baseline_v2.json` được sinh bằng script nhưng cần commit (`git add -f`) để job `eval-gate-v2` chạy thật; trước đó job này bỏ qua các bước nên xanh vì không làm gì.
 
+## Gate chống gian lận eval (M7, Expert)
+
+`gate.integrity_check` chạy **trước** mọi so sánh số liệu và chặn với lý do `INTEGRITY` nếu báo cáo không đáng tin. Nó kiểm tra:
+- số không hữu hạn (`nan`/`inf`) trong metric và dòng;
+- `evaluator_failures` khác rỗng (kể cả trên run xanh), và dòng có giá trị `None`/thiếu cho metric đã chấm;
+- số dòng = `items × seeds` của manifest, không có (item, seed) trùng, tập (item, seed) và manifest seeds/items khớp baseline;
+- nhãn slice của từng item khớp baseline (đổi nhãn một item ra khỏi slice bị bắt);
+- **số metric báo cáo phải bằng số tính lại từ các dòng** (sửa tay con số không qua được; bỏ qua `cost_per_success` khi dòng không có cột `cost`);
+- ratchet với `--base-spec` trên cùng `eval_set_version`: `max`/`max_increase` không được tăng, `min` không được giảm, `blocking` không được tắt, `no_significant_drop` không được bỏ, metric hay slice không được xoá, seeds không được co lại, độ tin cậy bootstrap không được tăng.
+
+Kết quả đã chạy:
+- 4 trap công khai (`python -m lab9.traps ...`): cả bốn **exit 1 với `INTEGRITY`**, lệnh `traps` exit 0 (gate chặn hết). `evaluator_errors_as_nan` bị bắt vì 9 dòng có `None`; `dropped_failing_rows` vì 131 dòng so với 140; `cherry_picked_seeds` vì thiếu 84 (item, seed) và manifest seeds [22, 44]; `loosened_spec` vì 13 ngưỡng bị nới.
+- 21 trường hợp tự dựng (ngoài repo, không có trong bộ trap): 16 trap bị chặn (dòng trùng giữ nguyên số lượng, `evaluator_failures` trên run xanh, sửa tay metric, đổi nhãn slice, `inf`, bỏ cả item và sửa manifest, đổi seed, 7 kiểu nới spec) và 5 trường hợp hợp lệ không bị chặn (baseline so với chính nó có và không có `--base-spec`, `fixed`, `honest_refactor`, spec chặt hơn). Các kiểu này được giữ lại thành `tests/test_lab9_advanced_integrity.py`.
+- Variant lỗi tự dựng từ công tắc có sẵn: `quiet_override` (FM-03 không để lại sự kiện `model_override`), `misreport`, `stale_clause`, `sibling_refund`, `leaky_trace`, `pre_deducted`, `ignore_denied`, `round_down` ở dạng thường hoặc chập chờn đều bị chặn; `paraphrase` và `extra_lookup` riêng lẻ không bị chặn.
+- Baseline so với chính nó: exit 0. A/A: Δ = 0. Sàn `pass_hat_5` = 0.80.
+
+**Trap có thể vẫn lọt (nói thẳng):**
+- **`sum_parts` ở seed chia hết cho 3 (`rare`) không bị chặn.** Nó làm đúng 3 trial fail ((E-014, E-105, E-106)@33), đúng bằng số trial baseline vốn đã fail ((E-002, E-101, E-102)@55), nên mọi chỉ số tổng hợp (`pass_rate` 0.9786, `pass_hat_5` 0.8929) trùng khớp từng chữ số với baseline. Đây là giới hạn cỡ mẫu nêu ở mục v2; tôi không hạ ngưỡng hay thêm luật "trial nào pass ở baseline mà fail ở PR thì chặn", vì luật đó chỉ đúng với MockLLM tất định và sẽ chặn nhầm ngẫu nhiên với model thật.
+- Gate chỉ so sánh với baseline đã commit; nếu chính baseline bị chỉnh sửa tay, `ci_check` (so metric baseline với lần chạy CI) là lớp bảo vệ duy nhất, không phải `integrity_check`.
+- Ratchet chỉ chạy khi có `--base-spec`; không có spec của commit gốc thì việc nới ngưỡng không bị bắt.
+- Một trap viết lại dòng lẫn metric lẫn manifest một cách nhất quán nhưng vẫn khớp đúng tập (item, seed) của baseline (ví dụ đổi `False` thành `True` ở các dòng rồi tính lại metric) sẽ qua `integrity_check`, vì không có gì trong báo cáo cho thấy dòng bị sửa; chỉ có thể phát hiện bằng cách chạy lại agent.
